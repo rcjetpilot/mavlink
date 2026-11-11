@@ -23,27 +23,14 @@ Released under GNU GPL version 3 or later
 import os
 import re
 
-# Python 2.x and 3.x compatibility
-try:
-    from tkinter import *
-    import tkinter.filedialog
-    import tkinter.messagebox
-except ImportError as ex:
-    # Must be using Python 2.x, import and rename
-    from Tkinter import *
-    import tkFileDialog
-    import tkMessageBox
-
-    tkinter.filedialog = tkFileDialog
-    del tkFileDialog
-    tkinter.messagebox = tkMessageBox
-    del tkMessageBox
+from tkinter import *  # noqa: F403
+import tkinter.filedialog
+import tkinter.messagebox
 
 from pymavlink.generator import mavgen
 from pymavlink.generator import mavparse
 
 title = "MAVLink Generator"
-error_limit = 5
 
 
 class Application(Frame):
@@ -117,10 +104,21 @@ class Application(Frame):
         self.validate_button.grid(row=4, column=1,sticky=W)
 
         #----------------------------------------
+        # Create the Validate Units box
+
+        self.strict_units_value = BooleanVar()
+        self.strict_units_label = Label( self, text="Validate Units")
+        self.strict_units_label.grid(row=5, column=0)
+        self.strict_units_button = Checkbutton(self, variable=self.strict_units_value, onvalue=True, offvalue=False)
+        self.strict_units_value.set(mavgen.DEFAULT_STRICT_UNITS)
+        self.strict_units_button.config(width=10)
+        self.strict_units_button.grid(row=5, column=1,sticky=W)
+
+        #----------------------------------------
         # Create the generate button
 
         self.generate_button = Button ( self, text="Generate", command=self.generateHeaders)
-        self.generate_button.grid(row=5,column=1)
+        self.generate_button.grid(row=6,column=1)
 
     """\
     Open a file selection window to choose the XML message definition.
@@ -128,7 +126,7 @@ class Application(Frame):
     def browseXMLFile(self):
         # TODO Allow specification of multiple XML definitions
         xml_file = tkinter.filedialog.askopenfilename(parent=self, title='Choose a definition file')
-        if xml_file != None:
+        if xml_file is not None:
             self.xml_value.set(xml_file)
 
     """\
@@ -138,7 +136,7 @@ class Application(Frame):
     def browseOutDirectory(self):
         mavlinkFolder = os.path.dirname(os.path.realpath(__file__))
         out_dir = tkinter.filedialog.askdirectory(parent=self,initialdir=mavlinkFolder,title='Please select an output directory')
-        if out_dir != None:
+        if out_dir is not None:
             self.out_value.set(out_dir)
 
     """\
@@ -146,7 +144,6 @@ class Application(Frame):
     """
     def generateHeaders(self):
         # Verify settings
-        rex = re.compile(".*\\.xml$", re.IGNORECASE)
         if not self.xml_value.get():
             tkinter.messagebox.showerror('Error Generating Headers','An XML message definition file must be specified.')
             return
@@ -157,29 +154,29 @@ class Application(Frame):
 
 
         if os.path.isdir(self.out_value.get()):
-            if not tkinter.messagebox.askokcancel('Overwrite Headers?','The output directory \'{0}\' already exists. Headers may be overwritten if they already exist.'.format(self.out_value.get())):
+            if not tkinter.messagebox.askokcancel('Overwrite Headers?', f"The output directory '{self.out_value.get()}' already exists. Headers may be overwritten if they already exist."):
                 return
 
         # Generate headers
-        opts = mavgen.Opts(self.out_value.get(), wire_protocol=self.protocol_value.get(), language=self.language_value.get(), validate=self.validate_value.get(), error_limit=error_limit);
+        opts = mavgen.Opts(self.out_value.get(), wire_protocol=self.protocol_value.get(), language=self.language_value.get(), validate=self.validate_value.get(), strict_units=self.strict_units_value.get())
         args = [self.xml_value.get()]
         try:
             mavgen.mavgen(opts,args)
             tkinter.messagebox.showinfo('Successfully Generated Headers', 'Headers generated successfully.')
 
         except Exception as ex:
-            exStr = formatErrorMessage(str(ex));
-            tkinter.messagebox.showerror('Error Generating Headers','{0!s}'.format(exStr))
+            exStr = formatErrorMessage(str(ex))
+            tkinter.messagebox.showerror('Error Generating Headers', f"{exStr}")
             return
 
 """\
 Format the mavgen exceptions by removing 'ERROR: '.
 """
 def formatErrorMessage(message):
-    reObj = re.compile(r'^(ERROR):\s+',re.M);
-    matches = re.findall(reObj, message);
+    reObj = re.compile(r'^(ERROR):\s+',re.M)
+    matches = re.findall(reObj, message)
     prefix = ("An error occurred in mavgen:" if len(matches) == 1 else "Errors occurred in mavgen:\n")
-    message = re.sub(reObj, '\n', message);
+    message = re.sub(reObj, '\n', message)
 
     return prefix + message
 
